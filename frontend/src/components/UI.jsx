@@ -1,9 +1,12 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useChat } from "../hooks/useChat";
+import { Mic } from "lucide-react"; 
 
 export const UI = ({ hidden, ...props }) => {
   const input = useRef();
   const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat();
+  const [recording, setRecording] = useState(false);
+  const [recognition, setRecognition] = useState(null);
 
   const sendMessage = () => {
     const text = input.current.value.trim();
@@ -12,6 +15,38 @@ export const UI = ({ hidden, ...props }) => {
       chat(text);
       input.current.value = "";
     }
+  };
+
+  const handleVoiceToggle = () => {
+    if (!("webkitSpeechRecognition" in window)) {
+      alert("Voice recognition not supported in this browser.");
+      return;
+    }
+
+    // If already recording, stop it
+    if (recording && recognition) {
+      recognition.stop();
+      setRecording(false);
+      return;
+    }
+
+    // Otherwise, start a new recording
+    const rec = new window.webkitSpeechRecognition();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => setRecording(true);
+    rec.onend = () => setRecording(false);
+
+    rec.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      input.current.value = transcript;
+      sendMessage();
+    };
+
+    rec.start();
+    setRecognition(rec);
   };
 
   if (hidden) return null;
@@ -28,12 +63,23 @@ export const UI = ({ hidden, ...props }) => {
 
       <div className="fixed inset-0 z-10 flex flex-row">
         <div className="flex-[0.6] flex items-center justify-center relative">
-          <div className="absolute top-4 right-7">
+          <div className="absolute top-4 right-7 space-x-2 flex">
             <button
               onClick={() => setCameraZoomed(!cameraZoomed)}
               className="bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-md"
             >
               {cameraZoomed ? "Zoom Out" : "Zoom In"}
+            </button>
+
+            {/* Talk to Agent Button */}
+            <button
+              onClick={handleVoiceToggle}
+              className={`${
+                recording ? "bg-red-500 hover:bg-red-600" : "bg-purple-500 hover:bg-purple-600"
+              } text-white px-4 py-2 rounded-md flex items-center space-x-2`}
+            >
+              <Mic className="w-5 h-5" />
+              <span>{recording ? "Stop Talking" : "Talk to Agent"}</span>
             </button>
           </div>
         </div>
@@ -70,18 +116,30 @@ export const UI = ({ hidden, ...props }) => {
               )}
             </div>
 
+            {/* Input Row with Voice Button */}
             <div className="flex flex-row border-t border-gray-300 rounded-b-2xl overflow-hidden">
               <input
-                className="flex-1 placeholder:text-gray-800 placeholder:italic p-3 bg-white rounded-l-2xl
+                className="flex-1 placeholder:text-gray-800 placeholder:italic p-3 bg-white
                            focus:ring-2 focus:ring-blue-400 focus:outline-none transition-all duration-150"
                 placeholder="Type a message..."
                 ref={input}
                 onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
               />
+
+              {/* Mic toggle inside input row too */}
+              <button
+                onClick={handleVoiceToggle}
+                className={`${
+                  recording ? "bg-red-500 hover:bg-red-600" : "bg-purple-500 hover:bg-purple-600"
+                } text-white px-4 flex items-center justify-center`}
+              >
+                <Mic className="w-5 h-5" />
+              </button>
+
               <button
                 disabled={loading || message}
                 onClick={sendMessage}
-                className={`bg-blue-500 hover:bg-blue-600 text-white px-6 font-semibold uppercase rounded-r-2xl
+                className={`bg-blue-500 hover:bg-blue-600 text-white px-6 font-semibold uppercase
                             transition-all duration-150 ${loading || message ? "cursor-not-allowed opacity-30" : ""}`}
               >
                 Send
