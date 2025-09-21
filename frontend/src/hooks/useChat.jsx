@@ -18,6 +18,20 @@ export const ChatProvider = ({ children }) => {
     setMessages((messages) => [...messages, ...resp]);
     setLoading(false);
   };
+
+  // New: chatWithAudio for sending audio to /transcribe-and-chat
+  const chatWithAudio = async (audioBlob) => {
+    setLoading(true);
+    const formData = new FormData();
+    formData.append("audio", audioBlob, "input.mp3");
+    const data = await fetch(`${backendUrl}/transcribe-and-chat`, {
+      method: "POST",
+      body: formData,
+    });
+    const resp = (await data.json()).messages;
+    setMessages((messages) => [...messages, ...resp]);
+    setLoading(false);
+  };
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState();
   const [loading, setLoading] = useState(false);
@@ -38,6 +52,7 @@ export const ChatProvider = ({ children }) => {
     <ChatContext.Provider
       value={{
         chat,
+        chatWithAudio, // add this
         message,
         onMessagePlayed,
         loading,

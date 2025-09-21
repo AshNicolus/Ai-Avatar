@@ -4,9 +4,10 @@ import { Mic } from "lucide-react";
 
 export const UI = ({ hidden, ...props }) => {
   const input = useRef();
-  const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat();
+  const { chat, chatWithAudio, loading, cameraZoomed, setCameraZoomed, message } = useChat();
   const [recording, setRecording] = useState(false);
-  const [recognition, setRecognition] = useState(null);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [audioChunks, setAudioChunks] = useState([]);
 
   const sendMessage = () => {
     const text = input.current.value.trim();
@@ -17,43 +18,49 @@ export const UI = ({ hidden, ...props }) => {
     }
   };
 
-  const handleVoiceToggle = () => {
-    if (!("webkitSpeechRecognition" in window)) {
-      alert("Voice recognition not supported in this browser.");
-      return;
-    }
 
-    // If already recording, stop it
-    if (recording && recognition) {
-      recognition.stop();
-      setRecording(false);
-      return;
-    }
+  // New: Voice recording using MediaRecorder
+  const startRecording = async () => {
+    setRecording(true);
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const recorder = new MediaRecorder(stream);
+    setMediaRecorder(recorder);
+    setAudioChunks([]);
+    recorder.start();
 
-    // Otherwise, start a new recording
-    const rec = new window.webkitSpeechRecognition();
-    rec.lang = "en-US";
-    rec.interimResults = false;
-    rec.maxAlternatives = 1;
-
-    rec.onstart = () => setRecording(true);
-    rec.onend = () => setRecording(false);
-
-    rec.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      input.current.value = transcript;
-      sendMessage();
+    recorder.ondataavailable = (e) => {
+      setAudioChunks((prev) => [...prev, e.data]);
     };
 
-    rec.start();
-    setRecognition(rec);
+    recorder.onstop = async () => {
+      setRecording(false);
+      const audioBlob = new Blob(audioChunks, { type: "audio/mp3" });
+      await chatWithAudio(audioBlob);
+      setAudioChunks([]);
+    };
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      setMediaRecorder(null);
+    }
   };
 
   if (hidden) return null;
 
   return (
     <>
-      <div className="fixed inset-0 -z-10">
+  <div className="fixed inset-0 -z-10">
+        {/* Hold to Talk button for voice input */}
+        <button
+          onMouseDown={startRecording}
+          onMouseUp={stopRecording}
+          disabled={loading}
+          style={{ margin: "1rem", padding: "0.5rem 1rem" }}
+        >
+          <Mic /> Hold to Talk
+        </button>
         <div className="background">
           {Array.from({ length: 20 }).map((_, i) => (
             <span key={i}></span>
